@@ -25,18 +25,28 @@
 	#include <p10F202.inc>        ; processor specific variable definitions
 	errorlevel -227
 
-;	__CONFIG   _MCLRE_ON & _CP_OFF & _WDT_OFF
 	__CONFIG   _MCLRE_OFF & _CP_OFF & _WDT_OFF
 
 
 	cblock 0x08
-		count1
-		count2
-		randHi
-		randLo
-		statustemp
+		randHi		; Random number generator
+		randLo		; Random number generator
+		statustemp	; Used in random number generator
 		temp
+		lastRnd		; Random ( ANDed #0x07)
+		leds		; The current state of the leds (bitmap)
+		dly0		; Delay counter
+		dly1		; Delay counter
+		dly2		; Delay counter
+		dly3		; Delay counter
+		showdly
+		count		; Loop counter for effects
 	endc
+
+
+	constant RNDFLASHON	=  .30		; Time in mS the led is lit during random flashing
+	constant RNDFLASHOFF = .150		; Time in mS between random flashes 
+	constant CYLONLOOPS = .10		; Nr of full back-and-forth passes
 
 
 	ORG     0x1FF             ; processor reset vector
@@ -44,222 +54,24 @@
 ; Internal RC calibration value is placed at location 0x1FF by Microchip
 ; as a movlw k, where the k is a literal value.
 
-	ORG     0x000             ; Start of code
-	movwf   OSCCAL            ; update register with factory cal value
+	ORG     0x000           ; Start of code
+	movwf   OSCCAL          ; update register with factory cal value
 
-	movlw B'11000111'		; NoWake, NoPullup, F/4, LoHi, PreT0, 1:256
-	OPTION
+	goto	Reset
 
-	movlw 	0x30
-	movwf 	randHi
-	movlw 	0x45
-	movwf 	randLo
 
 ;
-;
-;
-;
-	call 	Led1
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led2
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led3
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led4
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led5
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led6
-	movlw	0xFF
-	call	DelayWms
+; Since the CALL assembly instruction only uses 8 bits of destination all
+; subroutine targens needs to reside in the first 256 bytes of code.  JUMP
+; instructions can reach the entire memory range
+; So here are
 
 
-touch
-	movlw	0x10
-	call	DelayWms
-	call 	LedOff
-	movlw	0x80
-	call	DelayWms
-	movf	GPIO, W	
-	andlw	0x08
-	btfsc	STATUS,Z
-	goto 	touch2
-	call 	Led3
-	goto 	touch
-touch2
-	call	Led4
-	goto 	touch
+UpdateShowLedsFor64ms_F
+	goto 	UpdateShowLedsFor64ms
 
-
-RandomFlashLoop
-	movlw	0x05
-	call	DelayWms
-	call 	LedOff
-	movlw	0x80
-	call	DelayWms
-
-RedoRandom
-	call	Random16
-	movf	randLo, W
-	andlw	0x07
-	movwf	temp
-	btfsc	STATUS,Z
-	goto	R1
-
-	decf	temp, F
-	btfsc	STATUS,Z
-	goto	R2
-
-	decf	temp, F
-	btfsc	STATUS,Z
-	goto	R3
-
-	decf	temp, F
-	btfsc	STATUS,Z
-	goto	R4
-
-	decf	temp, F
-	btfsc	STATUS,Z
-	goto	R5
-
-	decf	temp, F
-	btfsc	STATUS,Z
-	goto	R6
-
-	goto	RedoRandom
-
-R1
-	call	Led1
-	goto 	RandomFlashLoop
-R2
-	call	Led2
-	goto 	RandomFlashLoop
-R3
-	call	Led3
-	goto 	RandomFlashLoop
-R4
-	call	Led4
-	goto 	RandomFlashLoop
-R5
-	call	Led5
-	goto 	RandomFlashLoop
-R6
-	call	Led6
-	goto 	RandomFlashLoop
-
-
-Loop1
-	call 	Led1
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led2
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led3
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led4
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led5
-	movlw	0xFF
-	call	DelayWms
-
-	call 	Led6
-	movlw	0xFF
-	call	DelayWms
-
-	goto	Loop1
-
-
-LedOff
-	clrf	GPIO			; GP0=Low GP1=Low GP2=Low
-	movlw	B'11111111'		; All GP Input
-	tris	GPIO
-	return
-
-Led1
-	movlw	B'00000001'		; GP0=Hi GP1=Low
-	movwf	GPIO
-	movlw	B'11111100'		; GP0 & GP1 Output
-	tris	GPIO
-	return
-
-Led2
-	movlw	B'00000010'		; GP0=Low GP1=Hi
-	movwf	GPIO
-	movlw	B'11111100'		; GP0 & GP1 Output
-	tris	GPIO
-	return
-
-Led3
-	movlw	B'00000001'		; GP0=Hi GP2=Low
-	movwf	GPIO
-	movlw	B'11111010'		; GP0 & GP2 Output
-	tris	GPIO
-	return
-
-Led4
-	movlw	B'00000100'		; GP0=Low GP2=Hi 
-	movwf	GPIO
-	movlw	B'11111010'		; GP0 & GP2 Output
-	tris	GPIO
-	return
-
-Led5
-	movlw	B'00000010'		; GP1=Hi GP2=Low
-	movwf	GPIO
-	movlw	B'11111001'		; GP1 & GP2 Output
-	tris	GPIO
-	return
-
-Led6
-	movlw	B'00000100'		; GP1=Low GP2=Hi
-	movwf	GPIO
-	movlw	B'11111001'		; GP1 & GP2 Output
-	tris	GPIO
-	return
-
-
-
-;*******************************************************************
-;
-; Delay for "w" ms
-;
-; This should be really be implemented as a TMR0 based delay with 
-; cpu sleep mode.
-;
-;*******************************************************************
-DelayWms							;variable delay
-	movwf 	count1
-	incf 	count1, F				;because 0 would give long delay
-loopw1
-
-	movlw	0xFF
-	movwf	count2
-loopw2
-	decfsz 	count2,F
-	goto	loopw2
-
-	decfsz 	count1,F
-	goto 	loopw1
-	return				
-
-
+ShowLedsForWms_F
+	goto	ShowLedsForWms
 
 
 ;*******************************************************************
@@ -297,9 +109,7 @@ Random16
 	movf 	statustemp, W
 	movwf 	STATUS
 
-
 	movf 	temp, W
-
 
 	xorwf 	randHi,W 		; LSB = xorwf(Q12,Q3)
 	swapf 	randHi, F
@@ -309,6 +119,445 @@ Random16
 	xorwf 	randLo, F
 	rlf 	randHi, F
 	return
+
+
+;*******************************************************************
+; Delay for "w" seconds
+;*******************************************************************
+DelayWseconds						;variable delay
+	movwf 	dly0
+	incf 	dly0, F				;because 0 would give long delay
+
+Delay1s
+	movlw	0x07
+	movwf	dly1
+	movlw	0x2F
+	movwf	dly2
+	movlw	0x03
+	movwf	dly3
+Delay1s_0
+	decfsz	dly1, f
+	goto	$+2
+	decfsz	dly2, f
+	goto	$+2
+	decfsz	dly3, f
+	goto	Delay1s_0
+	goto	$+1
+	goto	$+1
+	goto	$+1
+	goto	$+1
+	goto	$+1
+
+	decfsz 	dly0,F
+	goto 	Delay1s
+	return				
+
+
+;*******************************************************************
+; Delay for "W" ms
+;*******************************************************************
+Delay1ms
+	movlw	1
+DelayWms						; variable delay
+	movwf 	dly0
+	incf 	dly0, F				; because 0 would give long delay
+
+Delayms_0
+	movlw	0xC6
+	movwf	dly1
+	movlw	0x01
+	movwf	dly2
+Delayms_1
+	decfsz	dly1, f
+	goto	$+2
+	decfsz	dly2, f
+	goto	Delayms_1
+	goto	$+1
+	goto	$+1
+
+	decfsz 	dly0,F
+	goto 	Delayms_0
+	return				
+
+
+
+
+;*******************************************************************
+; The turn off all leds and set the ports for input
+;*******************************************************************
+LedOff
+	movlw	B'11111111'		; All GP Hhigh
+	movwf	GPIO
+	movlw	B'11111111'		; All GP Input
+	goto	LedReturn
+
+
+;*******************************************************************
+; Functions for turning on a single led (Led1-Led6)
+;*******************************************************************
+Led1						
+	movlw	B'00000001'		; GP0=Hi GP2=Low
+	movwf	GPIO
+	movlw	B'11111010'		; GP0 & GP2 Output
+	goto	LedReturn
+Led2
+	movlw	B'00000100'		; GP0=Low GP2=Hi 
+	movwf	GPIO
+	movlw	B'11111010'		; GP0 & GP2 Output
+	goto	LedReturn
+Led3
+	movlw	B'00000010'		; GP1=Hi GP2=Low
+	movwf	GPIO
+	movlw	B'11111001'		; GP1 & GP2 Output
+	goto	LedReturn
+Led4
+	movlw	B'00000100'		; GP1=Low GP2=Hi
+	movwf	GPIO
+	movlw	B'11111001'		; GP1 & GP2 Output
+	goto	LedReturn
+Led5
+	movlw	B'00000001'		; GP0=Hi GP1=Low
+	movwf	GPIO
+	movlw	B'11111100'		; GP0 & GP1 Output
+	goto	LedReturn
+Led6
+	movlw	B'00000010'		; GP0=Low GP1=Hi
+	movwf	GPIO
+	movlw	B'11111100'		; GP0 & GP1 Output
+LedReturn
+	tris	GPIO
+	return
+
+
+
+;*******************************************************************
+; Start of code - this wil end up in the second page
+;*******************************************************************
+Reset	
+	movlw B'01000111'		; Wake, NoPullup, F/4, LoHi, PreT0, 1:256
+	option
+
+	movlw 	0x30			; Initialize the random seed with some good 
+	movwf 	randHi			; fixed values
+	movlw 	0x45
+	movwf 	randLo
+
+
+	movlw	0x60			; Wait 100 mS during startup to debounce the button
+	call 	DelayWms	
+
+Touch						; Generate new radom seend as long as the button is
+	call	LedOff			; pressed during startup
+
+	movf	GPIO, W			; Read status of the touchpad
+	andlw	0x08
+	btfss	STATUS,Z
+	goto	Start			; Goto Start if no touch
+
+	call 	Random16		; While touched flash leds and generate random numbers
+	call	Led1
+	movlw	0x10
+	call	DelayWms
+	call	Led2
+	movlw	0x10
+	call	DelayWms
+	call	Led3
+	movlw	0x10
+	call	DelayWms
+	call	Led4
+	movlw	0x10
+	call	DelayWms
+	call	Led5
+	movlw	0x10
+	call	DelayWms
+	call	Led6
+	movlw	0x10
+	call	DelayWms
+	goto	Touch	
+
+Start
+	goto 	RandomFlashing
+
+Loop
+	movlw	0x01
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+
+	movlw	0x03
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F	
+
+	movlw	0x07
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+
+	movlw	0x0f
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+	
+	movlw	0x1f
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+	
+	movlw	0x3f
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+
+	movlw	0xff
+	call 	DelayWms
+	
+	movlw	0x3f
+	movwf	leds
+	movlw	0x20
+	call	ShowLedsForWms_F
+
+	movlw	0xff
+	call 	DelayWms
+
+	movlw	0x3f
+	movwf	leds
+	movlw	0x20
+	call	ShowLedsForWms_F
+
+	movlw	0xff
+	call 	DelayWms
+	movlw	0x3f
+	movwf	leds
+	movlw	0x20
+	call	ShowLedsForWms_F
+
+	movlw	0xff
+	call 	DelayWms
+
+	movlw	0x3f
+	movwf	leds
+	movlw	0x40
+	call	ShowLedsForWms_F
+
+	
+	movf	GPIO, W				; Go back to sleep
+	movlw	0x10
+	call 	DelayWms
+	sleep
+
+	movlw	0x10
+	call 	DelayWms
+	movf	GPIO, W	
+	sleep						; Sleep really hard
+
+	movlw	0x10
+	call 	DelayWms
+	sleep						; Sleep really really hard
+
+	goto 	Loop
+
+
+
+
+;*******************************************************************
+; Cylon mode - go back and forth full line a few times 
+;*******************************************************************
+Cylon
+	movlw	CYLONLOOPS
+	movwf	count
+
+CylonLoop
+	decf	count, F	; Return if done flashing
+	btfsc	STATUS, Z
+	return 
+
+	movlw	B'00000001'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000011'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00001111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00011111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111110'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111100'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00110000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00100000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00100000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00110000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111000'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111100'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111110'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00111111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00011111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00001111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000111'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000011'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000001'
+	call	UpdateShowLedsFor64ms_F
+	movlw	B'00000000'
+	call	UpdateShowLedsFor64ms_F
+	goto	CylonLoop
+
+;*******************************************************************
+; Do random flashing for a while.
+;*******************************************************************
+RandomFlashing
+	movlw	0xff		; 255 flashes
+	movwf	count
+
+RandomFlashLoop
+	decf	count, F	; Return if done flashing
+	btfsc	STATUS, Z
+	return 
+
+	movlw	RNDFLASHON		; Let the led that was turned on by to following code
+	call	DelayWms	; be briefly lit for a short flash
+
+	call 	LedOff		; Then turn it off for a longer time
+	movlw	RNDFLASHOFF
+	call	DelayWms
+
+RedoRandom
+	call	Random16
+	movf	randHi, W
+	andlw	0x07
+	movwf	temp
+	xorwf	lastRnd,W		; Check if the random number is the same as last time
+	btfsc	STATUS,Z
+	goto	RedoRandom		; If same, just get a new number
+	
+	movf	temp, W			; Random number is Zero?
+	movwf	lastRnd			; Store this random number for comparision next time
+	btfsc	STATUS,Z
+	goto	R1
+
+	decf	temp, F			; Random number is One?
+	btfsc	STATUS,Z
+	goto	R2
+
+	decf	temp, F			; Random number is Two?
+	btfsc	STATUS,Z
+	goto	R3
+
+	decf	temp, F			; Random number is Three?
+	btfsc	STATUS,Z
+	goto	R4
+
+	decf	temp, F			; Random number is Four?
+	btfsc	STATUS,Z
+	goto	R5
+
+	decf	temp, F			; Random number is Five?
+	btfsc	STATUS,Z
+	goto	R6
+
+	goto	RedoRandom
+
+R1
+	call	Led1
+	goto 	RandomFlashLoop
+R2
+	call	Led2
+	goto 	RandomFlashLoop
+R3
+	call	Led3
+	goto 	RandomFlashLoop
+R4
+	call	Led4
+	goto 	RandomFlashLoop
+R5
+	call	Led5
+	goto 	RandomFlashLoop
+R6
+	call	Led6
+	goto 	RandomFlashLoop
+
+
+
+
+;*******************************************************************
+; Light up the leds according to the bits set in the "leds" register
+; To ensure even brightness only 1 led is lit at a time
+;*******************************************************************
+UpdateShowLedsFor64ms
+	movwf	leds
+ShowLedsFor64ms
+	movlw	0x40
+
+ShowLedsForWms
+	movwf 	showdly
+
+SLFW
+	movf	leds, W
+	andlw	0x01
+	btfss	STATUS,Z
+	call	Led1
+	call	Delay1ms
+
+	movf	leds, W
+	andlw	0x02
+	btfss	STATUS,Z
+	call	Led2
+	call	Delay1ms
+
+	movf	leds, W
+	andlw	0x04
+	btfss	STATUS,Z
+	call	Led3
+	call	Delay1ms
+
+	movf	leds, W
+	andlw	0x08
+	btfss	STATUS,Z
+	call	Led4
+	call	Delay1ms
+
+	movf	leds, W
+	andlw	0x10
+	btfss	STATUS,Z
+	call	Led5
+	call	Delay1ms
+
+	movf	leds, W
+	andlw	0x20
+	btfss	STATUS,Z
+	call	Led6
+	call	Delay1ms
+
+	decfsz 	showdly,F
+	goto 	SLFW
+
+	call	LedOff
+	return
+
+
+
+
+
 
 
 
